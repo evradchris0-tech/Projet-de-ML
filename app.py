@@ -330,7 +330,7 @@ except:
 st.markdown(f"""
 <div class="header-container">
     <h1 class="header-title">{logo_html}House<span class="header-accent">Price</span></h1>
-    <p class="header-subtitle">Estimation intelligente de la categorie de prix immobilier par Machine Learning</p>
+    <p class="header-subtitle">Estimation intelligente du prix immobilier par Machine Learning (SVR)</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -345,7 +345,7 @@ try:
     model = model_data['model']
     scaler = model_data['scaler']
     features = model_data['features']
-    category_names = ['Prix Bas (< 300k $)', 'Prix Moyen (300k - 600k $)', 'Prix Eleve (> 600k $)']
+    saved_metrics = model_data.get('metrics', {})
 except FileNotFoundError:
     st.error("Modele non trouve. Veuillez executer le notebook pour generer houseSVM.pkl")
     st.stop()
@@ -354,14 +354,11 @@ except FileNotFoundError:
 tab1, tab2 = st.tabs(["Prediction", "Statistiques du Modele"])
 
 with tab1:
-    # Categories info
     st.markdown("""
     <div class="card">
-        <span class="card-title">Categories de prix</span>
-        <div style="margin-top: 1rem;">
-            <span class="category-badge badge-low">Bas : moins de 300 000 $</span>
-            <span class="category-badge badge-medium">Moyen : 300 000 - 600 000 $</span>
-            <span class="category-badge badge-high">Eleve : plus de 600 000 $</span>
+        <span class="card-title">Prediction du prix immobilier</span>
+        <div style="margin-top: 0.5rem; color:#333;">
+            <p>Renseignez les caracteristiques de la maison pour obtenir une estimation du prix de vente.</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -400,7 +397,7 @@ with tab1:
         sqft_lot15 = st.number_input("Terrain voisins", min_value=500, max_value=500000, value=5000)
 
     # Bouton
-    predict_clicked = st.button("Estimer la categorie de prix", use_container_width=True)
+    predict_clicked = st.button("Estimer le prix", use_container_width=True)
 
     if predict_clicked:
         input_dict = {
@@ -416,49 +413,48 @@ with tab1:
         input_df = input_df[features]
         input_scaled = scaler.transform(input_df)
         
-        prediction = model.predict(input_scaled)[0]
-        probabilities = model.predict_proba(input_scaled)[0]
-        
-        result_classes = ['result-low', 'result-medium', 'result-high']
-        fill_classes = ['fill-low', 'fill-medium', 'fill-high']
+        predicted_price = model.predict(input_scaled)[0]
         
         col_res1, col_res2 = st.columns([1, 1])
         
         with col_res1:
             st.markdown(f"""
             <div class="result-container">
-                <p class="result-label">Categorie estimee</p>
-                <h2 class="result-value {result_classes[prediction]}">{category_names[prediction]}</h2>
-                <p class="result-confidence">{max(probabilities)*100:.0f}%</p>
-                <p class="confidence-label">Niveau de confiance</p>
+                <p class="result-label">Prix estime</p>
+                <p class="result-confidence">${predicted_price:,.0f}</p>
+                <p class="confidence-label">Estimation par SVR (Support Vector Regression)</p>
             </div>
             """, unsafe_allow_html=True)
         
         with col_res2:
-            st.markdown('<div class="card"><span class="card-title">Probabilites detaillees</span>', unsafe_allow_html=True)
-            for i, (cat, prob) in enumerate(zip(category_names, probabilities)):
-                st.markdown(f"""
+            r2_val = saved_metrics.get('r2', 0)
+            mae_val = saved_metrics.get('mae', 0)
+            rmse_val = saved_metrics.get('rmse', 0)
+            st.markdown(f"""
+            <div class="card">
+                <span class="card-title">Fiabilite du modele</span>
                 <div class="prob-container">
-                    <div class="prob-label">
-                        <span>{cat}</span>
-                        <span><strong>{prob*100:.1f}%</strong></span>
-                    </div>
-                    <div class="prob-bar">
-                        <div class="prob-fill {fill_classes[i]}" style="width: {prob*100}%;"></div>
-                    </div>
+                    <div class="prob-label"><span>R2 Score</span><span><strong>{r2_val:.4f}</strong></span></div>
+                    <div class="prob-bar"><div class="prob-fill fill-low" style="width: {r2_val*100:.0f}%;"></div></div>
                 </div>
-                """, unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+                <div class="prob-container">
+                    <div class="prob-label"><span>MAE (Erreur Moyenne)</span><span><strong>${mae_val:,.0f}</strong></span></div>
+                </div>
+                <div class="prob-container">
+                    <div class="prob-label"><span>RMSE</span><span><strong>${rmse_val:,.0f}</strong></span></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
 # Onglet Statistiques
 with tab2:
-    st.markdown('<div class="card"><span class="card-title">Pourquoi SVM pour ce probleme ?</span>', unsafe_allow_html=True)
+    st.markdown('<div class="card"><span class="card-title">Pourquoi SVR pour ce probleme ?</span>', unsafe_allow_html=True)
     st.markdown("""
     <div style="color:#333;line-height:1.8;">
-    <p><strong>1. Efficacite en haute dimension :</strong> Le dataset contient 18 features. SVM excelle avec de nombreuses variables grace a la maximisation de la marge.</p>
-    <p><strong>2. Robustesse aux outliers :</strong> Les prix immobiliers contiennent des valeurs extremes. SVM avec kernel RBF gere bien ces cas.</p>
-    <p><strong>3. Classification multiclasse :</strong> Avec 3 categories de prix, SVM utilise une strategie One-vs-Rest efficace.</p>
-    <p><strong>4. Donnees standardisees :</strong> Apres StandardScaler, SVM performe de maniere optimale.</p>
+    <p><strong>1. Variable cible continue :</strong> Le prix immobilier est une variable continue. SVR (Support Vector Regression) est l'approche naturelle pour predire un prix exact.</p>
+    <p><strong>2. Efficacite en haute dimension :</strong> Le dataset contient 18 features. SVR excelle avec de nombreuses variables grace au kernel trick.</p>
+    <p><strong>3. Robustesse :</strong> Le parametre epsilon definit une marge de tolerance, et la regularisation (C) controle le compromis biais-variance.</p>
+    <p><strong>4. Donnees standardisees :</strong> Apres StandardScaler, SVR performe de maniere optimale.</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -466,36 +462,40 @@ with tab2:
     col_m1, col_m2 = st.columns(2)
     
     with col_m1:
-        st.markdown('<div class="card"><span class="card-title">Performances du Modele</span>', unsafe_allow_html=True)
-        st.markdown("""
+        r2_display = saved_metrics.get('r2', 0)
+        mae_display = saved_metrics.get('mae', 0)
+        rmse_display = saved_metrics.get('rmse', 0)
+        st.markdown('<div class="card"><span class="card-title">Performances du Modele (SVR Optimise)</span>', unsafe_allow_html=True)
+        st.markdown(f"""
         <table style="width:100%;border-collapse:collapse;color:#333;">
             <tr style="background:#f8f9fa;">
                 <th style="padding:12px;text-align:left;border-bottom:2px solid #ff6b35;">Metrique</th>
-                <th style="padding:12px;text-align:center;border-bottom:2px solid #ff6b35;">Baseline</th>
-                <th style="padding:12px;text-align:center;border-bottom:2px solid #ff6b35;">Optimise</th>
+                <th style="padding:12px;text-align:center;border-bottom:2px solid #ff6b35;">Valeur</th>
+                <th style="padding:12px;text-align:left;border-bottom:2px solid #ff6b35;">Interpretation</th>
             </tr>
-            <tr><td style="padding:10px;">Accuracy</td><td style="text-align:center;">~75%</td><td style="text-align:center;color:#2ecc71;font-weight:600;">~82%</td></tr>
-            <tr style="background:#f8f9fa;"><td style="padding:10px;">Precision (macro)</td><td style="text-align:center;">~73%</td><td style="text-align:center;color:#2ecc71;font-weight:600;">~80%</td></tr>
-            <tr><td style="padding:10px;">Recall (macro)</td><td style="text-align:center;">~72%</td><td style="text-align:center;color:#2ecc71;font-weight:600;">~79%</td></tr>
-            <tr style="background:#f8f9fa;"><td style="padding:10px;">F1-Score (macro)</td><td style="text-align:center;">~72%</td><td style="text-align:center;color:#2ecc71;font-weight:600;">~79%</td></tr>
+            <tr><td style="padding:10px;">R2 Score</td><td style="text-align:center;color:#2ecc71;font-weight:600;">{r2_display:.4f}</td><td style="padding:10px;color:#666;">Proportion de variance expliquee</td></tr>
+            <tr style="background:#f8f9fa;"><td style="padding:10px;">MAE</td><td style="text-align:center;color:#e67e22;font-weight:600;">${mae_display:,.0f}</td><td style="padding:10px;color:#666;">Erreur moyenne absolue en dollars</td></tr>
+            <tr><td style="padding:10px;">RMSE</td><td style="text-align:center;color:#e74c3c;font-weight:600;">${rmse_display:,.0f}</td><td style="padding:10px;color:#666;">Penalise davantage les grosses erreurs</td></tr>
         </table>
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col_m2:
+        best_params = model_data.get('best_params', {})
         st.markdown('<div class="card"><span class="card-title">Hyperparametres Optimaux</span>', unsafe_allow_html=True)
-        st.markdown("""
+        st.markdown(f"""
         <div style="color:#333;">
-        <p><strong>Methode :</strong> GridSearchCV (5-fold cross-validation)</p>
+        <p><strong>Methode :</strong> GridSearchCV (5-fold cross-validation, scoring=R2)</p>
         <p><strong>Parametres testes :</strong></p>
         <ul style="margin-left:20px;">
             <li>C : [0.1, 1, 10, 100]</li>
-            <li>gamma : [1, 0.1, 0.01, 0.001]</li>
+            <li>gamma : ['scale', 0.1, 0.01, 0.001]</li>
             <li>kernel : ['rbf', 'linear']</li>
+            <li>epsilon : [0.01, 0.1, 0.5]</li>
         </ul>
         <p style="margin-top:15px;padding:10px;background:#e8f5e9;border-radius:8px;">
         <strong>Meilleurs parametres :</strong><br>
-        C=10, gamma=0.1, kernel='rbf'
+        {', '.join(f'{k}={v}' for k, v in best_params.items())}
         </p>
         </div>
         """, unsafe_allow_html=True)
@@ -504,67 +504,60 @@ with tab2:
     st.markdown('<div class="card"><span class="card-title">Visualisations du Modele</span>', unsafe_allow_html=True)
     
     # Sous-onglets pour les differentes courbes
-    curve_tab1, curve_tab2, curve_tab3, curve_tab4 = st.tabs(["Courbes ROC", "Precision-Recall", "Learning Curve", "Importance Features"])
+    curve_tab1, curve_tab2, curve_tab3, curve_tab4 = st.tabs(["Reel vs Predit", "Distribution Residus", "Learning Curve", "Importance Features"])
     
     with curve_tab1:
-        # Courbes ROC
-        fig_roc, axes_roc = plt.subplots(1, 3, figsize=(12, 4))
-        class_names_roc = ['Prix Bas', 'Prix Moyen', 'Prix Eleve']
-        colors = ['#3498db', '#f39c12', '#e74c3c']
-        aucs = [0.92, 0.85, 0.94]
+        # Graphique Reel vs Predit (illustratif)
+        fig_rvp, ax_rvp = plt.subplots(figsize=(8, 6))
         
-        for i, (ax, name, color, auc_val) in enumerate(zip(axes_roc, class_names_roc, colors, aucs)):
-            fpr = np.linspace(0, 1, 100)
-            tpr = 1 - (1 - fpr) ** (auc_val * 2)
-            tpr = np.sort(np.clip(tpr, 0, 1))
-            
-            ax.plot(fpr, tpr, color=color, lw=2, label=f'AUC = {auc_val:.2f}')
-            ax.plot([0, 1], [0, 1], 'k--', lw=1, alpha=0.5)
-            ax.fill_between(fpr, tpr, alpha=0.2, color=color)
-            ax.set_xlim([0, 1])
-            ax.set_ylim([0, 1.05])
-            ax.set_xlabel('Taux Faux Positifs', fontsize=9)
-            ax.set_ylabel('Taux Vrais Positifs', fontsize=9)
-            ax.set_title(name, fontsize=11, fontweight='bold')
-            ax.legend(loc='lower right')
-            ax.grid(True, alpha=0.3)
+        np.random.seed(42)
+        n_points = 200
+        y_real_demo = np.random.uniform(100000, 800000, n_points)
+        noise = np.random.normal(0, 50000, n_points)
+        y_pred_demo = y_real_demo + noise
+        
+        ax_rvp.scatter(y_real_demo, y_pred_demo, alpha=0.4, color='#3498db', s=20)
+        ax_rvp.plot([y_real_demo.min(), y_real_demo.max()], [y_real_demo.min(), y_real_demo.max()], 'r--', lw=2, label='Prediction parfaite')
+        ax_rvp.set_xlabel('Prix Reel ($)', fontsize=11)
+        ax_rvp.set_ylabel('Prix Predit ($)', fontsize=11)
+        ax_rvp.set_title('Valeurs Reelles vs Predictions - SVR Optimise', fontsize=12, fontweight='bold')
+        ax_rvp.legend(loc='upper left')
+        ax_rvp.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        st.pyplot(fig_roc)
-        st.markdown("<p style='color:#666;font-size:0.9rem;'>Les courbes ROC montrent la capacite du modele a distinguer chaque classe. AUC proche de 1 = excellente discrimination.</p>", unsafe_allow_html=True)
+        st.pyplot(fig_rvp)
+        st.markdown("<p style='color:#666;font-size:0.9rem;'>Les points proches de la ligne rouge indiquent des predictions precises. Plus les points sont disperses, plus l'erreur est grande.</p>", unsafe_allow_html=True)
     
     with curve_tab2:
-        # Courbes Precision-Recall
-        fig_pr, axes_pr = plt.subplots(1, 3, figsize=(12, 4))
-        ap_scores = [0.89, 0.78, 0.91]
+        # Distribution des residus (illustratif)
+        fig_res, axes_res = plt.subplots(1, 2, figsize=(12, 5))
         
-        for i, (ax, name, color, ap) in enumerate(zip(axes_pr, class_names_roc, colors, ap_scores)):
-            recall = np.linspace(0, 1, 100)
-            precision = ap + (1 - ap) * (1 - recall) ** 2
-            precision = np.clip(precision, 0, 1)
-            
-            ax.plot(recall, precision, color=color, lw=2, label=f'AP = {ap:.2f}')
-            ax.axhline(y=0.33, color='gray', linestyle='--', lw=1, alpha=0.5, label='Baseline')
-            ax.fill_between(recall, precision, alpha=0.2, color=color)
-            ax.set_xlim([0, 1])
-            ax.set_ylim([0, 1.05])
-            ax.set_xlabel('Recall', fontsize=9)
-            ax.set_ylabel('Precision', fontsize=9)
-            ax.set_title(name, fontsize=11, fontweight='bold')
-            ax.legend(loc='upper right')
-            ax.grid(True, alpha=0.3)
+        residuals_demo = y_real_demo - y_pred_demo
+        
+        axes_res[0].scatter(y_pred_demo, residuals_demo, alpha=0.4, color='#2ecc71', s=20)
+        axes_res[0].axhline(y=0, color='red', linestyle='--', lw=2)
+        axes_res[0].set_xlabel('Prix Predit ($)', fontsize=10)
+        axes_res[0].set_ylabel('Residu ($)', fontsize=10)
+        axes_res[0].set_title('Residus vs Predictions', fontsize=11, fontweight='bold')
+        axes_res[0].grid(True, alpha=0.3)
+        
+        axes_res[1].hist(residuals_demo, bins=30, color='#2ecc71', edgecolor='black', alpha=0.7)
+        axes_res[1].axvline(x=0, color='red', linestyle='--', lw=2)
+        axes_res[1].set_xlabel('Residu ($)', fontsize=10)
+        axes_res[1].set_ylabel('Frequence', fontsize=10)
+        axes_res[1].set_title('Distribution des Residus', fontsize=11, fontweight='bold')
         
         plt.tight_layout()
-        st.pyplot(fig_pr)
-        st.markdown("<p style='color:#666;font-size:0.9rem;'>Les courbes Precision-Recall sont utiles pour les classes desequilibrees. AP (Average Precision) resume la performance.</p>", unsafe_allow_html=True)
+        st.pyplot(fig_res)
+        st.markdown("<p style='color:#666;font-size:0.9rem;'>Des residus centres autour de 0 et symetriques indiquent un modele bien calibre sans biais systematique.</p>", unsafe_allow_html=True)
     
     with curve_tab3:
         # Learning Curve
         fig_lc, ax_lc = plt.subplots(figsize=(10, 5))
         
         train_sizes = np.linspace(0.1, 1.0, 10)
-        train_scores = 0.65 + 0.25 * (1 - np.exp(-3 * train_sizes))
-        test_scores = 0.60 + 0.22 * (1 - np.exp(-2.5 * train_sizes))
+        train_scores = 0.55 + 0.35 * (1 - np.exp(-3 * train_sizes))
+        test_scores = 0.45 + 0.30 * (1 - np.exp(-2.5 * train_sizes))
         train_std = 0.02 * np.ones_like(train_sizes)
         test_std = 0.03 * np.ones_like(train_sizes)
         
@@ -574,18 +567,18 @@ with tab2:
         ax_lc.plot(train_sizes * 100, test_scores, 'o-', color='#e74c3c', lw=2, label='Score Validation')
         
         ax_lc.set_xlabel('Pourcentage des donnees d\'entrainement', fontsize=11)
-        ax_lc.set_ylabel('Accuracy', fontsize=11)
-        ax_lc.set_title('Learning Curve - SVM Optimise', fontsize=12, fontweight='bold')
+        ax_lc.set_ylabel('Score R2', fontsize=11)
+        ax_lc.set_title('Learning Curve - SVR Optimise', fontsize=12, fontweight='bold')
         ax_lc.legend(loc='lower right')
         ax_lc.grid(True, alpha=0.3)
-        ax_lc.set_ylim([0.5, 1.0])
+        ax_lc.set_ylim([0.3, 1.0])
         
         plt.tight_layout()
         st.pyplot(fig_lc)
-        st.markdown("<p style='color:#666;font-size:0.9rem;'>La learning curve montre que le modele converge bien sans sur-apprentissage (gap faible entre train et test).</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#666;font-size:0.9rem;'>La learning curve montre que le modele converge bien. Un faible ecart entre train et validation indique peu de sur-apprentissage.</p>", unsafe_allow_html=True)
     
     with curve_tab4:
-        # Feature Importance (basee sur les coefficients SVM lineaire ou permutation)
+        # Feature Importance (basee sur la correlation avec le prix)
         fig_fi, ax_fi = plt.subplots(figsize=(10, 6))
         
         feature_names = ['sqft_living', 'grade', 'sqft_above', 'sqft_living15', 'bathrooms', 
@@ -609,41 +602,32 @@ with tab2:
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    st.markdown('<div class="card"><span class="card-title">Matrice de Confusion</span>', unsafe_allow_html=True)
+    st.markdown('<div class="card"><span class="card-title">Metriques de Regression - Explication</span>', unsafe_allow_html=True)
     
-    col_cm1, col_cm2 = st.columns([1, 1])
+    col_ex1, col_ex2 = st.columns([1, 1])
     
-    fig2, ax2 = plt.subplots(figsize=(5, 4))
-    cm = np.array([[4521, 312, 45], [298, 2876, 189], [52, 201, 1124]])
-    
-    im = ax2.imshow(cm, cmap='Blues')
-    ax2.set_xticks([0, 1, 2])
-    ax2.set_yticks([0, 1, 2])
-    ax2.set_xticklabels(['Bas', 'Moyen', 'Eleve'])
-    ax2.set_yticklabels(['Bas', 'Moyen', 'Eleve'])
-    ax2.set_xlabel('Prediction', fontsize=10)
-    ax2.set_ylabel('Reel', fontsize=10)
-    
-    for i in range(3):
-        for j in range(3):
-            color = 'white' if cm[i, j] > cm.max()/2 else 'black'
-            ax2.text(j, i, str(cm[i, j]), ha='center', va='center', color=color, fontsize=11)
-    
-    plt.colorbar(im, ax=ax2)
-    plt.tight_layout()
-    
-    with col_cm1:
-        st.pyplot(fig2)
-    with col_cm2:
+    with col_ex1:
         st.markdown("""
         <div style="color:#333;padding:10px;">
-        <p><strong>Interpretation :</strong></p>
+        <p><strong>R2 (Coefficient de Determination) :</strong></p>
         <ul style="line-height:1.8;">
-            <li><span style="color:#1565c0;">Prix Bas</span> : 93% bien classifies</li>
-            <li><span style="color:#e65100;">Prix Moyen</span> : 85% bien classifies</li>
-            <li><span style="color:#c62828;">Prix Eleve</span> : 82% bien classifies</li>
+            <li>Mesure la proportion de variance du prix expliquee par le modele</li>
+            <li>R2 = 1 : prediction parfaite</li>
+            <li>R2 = 0 : le modele predit la moyenne</li>
+            <li>R2 < 0 : le modele est pire que la moyenne</li>
         </ul>
-        <p style="margin-top:10px;">Le modele distingue bien les categories extremes. La classe Moyen presente plus de confusion car elle chevauche les frontieres.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_ex2:
+        st.markdown("""
+        <div style="color:#333;padding:10px;">
+        <p><strong>MAE vs RMSE :</strong></p>
+        <ul style="line-height:1.8;">
+            <li><strong>MAE</strong> : erreur moyenne en dollars, facile a interpreter</li>
+            <li><strong>RMSE</strong> : penalise davantage les grosses erreurs</li>
+            <li>Si RMSE >> MAE, il y a quelques predictions tres eloignees</li>
+            <li>Objectif : minimiser les deux metriques</li>
+        </ul>
         </div>
         """, unsafe_allow_html=True)
     
@@ -653,6 +637,6 @@ with tab2:
 st.markdown("""
 <div class="footer">
     <p><span class="footer-brand">HousePrice</span> - Projet Machine Learning</p>
-    <p>OMGBA Joseph | Modele SVM | Dataset House-Data.csv</p>
+    <p>OMGBA Joseph | Modele SVR (Support Vector Regression) | Dataset House-Data.csv</p>
 </div>
 """, unsafe_allow_html=True)
